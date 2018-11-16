@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
+
+var wg sync.WaitGroup
 
 func errorExit(err error) {
 	fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -41,6 +44,9 @@ func appendFile(srcFileName, destFileName string) error {
 // download url to fileName.
 func download(url, fileName string) (int, error) {
 
+	fmt.Print(".")
+	//fmt.Printf("downloading: %s\n", fileName)
+
 	//fmt.Printf("downloading: %s\n", url)
 	//fmt.Printf("         to: %s\n", fileName)
 
@@ -54,7 +60,7 @@ func download(url, fileName string) (int, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		errorExit(fmt.Errorf("we need to abort => received http error %d", resp.StatusCode))
+		return 0, fmt.Errorf("we need to abort => received http error %d", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()
@@ -77,6 +83,8 @@ func urlAndFilePath(baseURL, outDir, fileName string) (url, filePath string) {
 
 func downloadChunk(baseURL, outDir, formatStr string, i int) (int, error) {
 
+	//fmt.Printf("downloadChunk %d\n", i)
+
 	url, filePath := urlAndFilePath(baseURL, outDir, fmt.Sprintf(formatStr, i))
 
 	n, err := download(url, filePath)
@@ -87,19 +95,25 @@ func downloadChunk(baseURL, outDir, formatStr string, i int) (int, error) {
 	return n, nil
 }
 
-func downloadChunks(baseURL, outDir, formatStr string, from, thru int) error {
+func downloadChunks(baseURL, outDir, formatStr string, startInd, count int, done chan bool) error {
 
-	for i := from; i <= thru; i++ {
+	//fmt.Printf("downloadChunks %d startingAt %d\n", count, startInd)
+
+	defer wg.Done()
+
+	for i := startInd; i < startInd+count; i++ {
 
 		url, filePath := urlAndFilePath(baseURL, outDir, fmt.Sprintf(formatStr, i))
 
 		n, err := download(url, filePath)
 		if err != nil {
-			return err
+			fmt.Println(err)
+			done <- true
 		}
 
 		if n == 0 {
-			errorExit(fmt.Errorf("Unknown chunk %d", i))
+			fmt.Printf("Unknown chunk %d", i)
+			done <- true
 		}
 
 	}
@@ -119,10 +133,12 @@ func downloadStream(baseURL, outDir, formatStr string) (chunks int, err error) {
 		}
 
 		fmt.Print(".")
-		if i%100 == 0 {
-			fmt.Printf(" %d\n", i)
-		} else if i%10 == 0 {
-			fmt.Print("\n")
+		if i > 0 {
+			if i%100 == 0 {
+				fmt.Printf(" %d\n", i)
+			} else if i%10 == 0 {
+				fmt.Print("\n")
+			}
 		}
 
 		if n == 0 {
@@ -134,36 +150,42 @@ func downloadStream(baseURL, outDir, formatStr string) (chunks int, err error) {
 	return i, nil
 }
 
-func downloadStreamAlt(baseURL, outDir, formatStr string) (chunks int, err error) {
+func downloadStreamOptimized(baseURL, outDir, formatStr string, done chan bool) (chunks int, err error) {
 
 	i := 0
 	step := 10
 
 	for {
-		n, err := downloadChunk(baseURL, outDir, formatStr, i+step)
+
+		n, err := downloadChunk(baseURL, outDir, formatStr, i+step-1)
 		if err != nil {
 			return 0, err
 		}
 
 		if n > 0 {
-			from := 0
-			if i > 0 {
-				from = i + 1
-			}
-			go downloadChunks(baseURL, outDir, formatStr, from, i+step-1)
+			wg.Add(1)
+			go downloadChunks(baseURL, outDir, formatStr, i, step-1, done)
 			i += step
+			//fmt.Printf("i=%d\n", i)
 			continue
 		}
 
-		if step == 1 {
-			_, err := downloadChunk(baseURL, outDir, formatStr, 0)
-			if err != nil {
-				return 0, err
-			}
-			return i + step, nil
+		if step > 2 {
+			step /= 2
+			//fmt.Printf("step=%d\n", step)
+			continue
 		}
 
-		step /= 2
+		_, err = downloadChunk(baseURL, outDir, formatStr, i)
+		if err != nil {
+			return 0, err
+		}
+
+		if n > 0 {
+			return i + 1, nil
+		} else {
+			return i, nil
+		}
 
 	}
 
@@ -194,15 +216,25 @@ func main() {
 
 	formatStr := "media_%d.ts"
 
+	done := make(chan bool)
+
+	go func() {
+		<-done
+		fmt.Println("error => done")
+		os.Exit(1)
+	}()
+
 	fmt.Println("downloading...")
 	from := time.Now()
 
-	n, err := downloadStream(baseURL, outDir, formatStr)
+	n, err := downloadStreamOptimized(baseURL, outDir, formatStr, done)
 	if err != nil {
 		errorExit(err)
 	}
 
-	fmt.Printf("received %d chunks in %.1f s\n", n, time.Since(from).Seconds())
+	wg.Wait()
+
+	fmt.Printf("\nreceived %d chunks in %.1f s\n", n, time.Since(from).Seconds())
 
 	fmt.Printf("writing %s...\n", outFileName)
 	for i := 0; i < n; i++ {
@@ -219,6 +251,5 @@ func main() {
 	}
 
 	fmt.Println("done!")
-
 	os.Exit(0)
 }
