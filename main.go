@@ -69,19 +69,60 @@ func download(url, fileName string) (int, error) {
 	return len(body), err
 }
 
+func urlAndFilePath(baseURL, outDir, fileName string) (url, filePath string) {
+	url = baseURL + "/" + fileName
+	filePath = filepath.Join(outDir, fileName)
+	return
+}
+
+func downloadChunk(baseURL, outDir, formatStr string, i int) (int, error) {
+
+	url, filePath := urlAndFilePath(baseURL, outDir, fmt.Sprintf(formatStr, i))
+
+	n, err := download(url, filePath)
+	if err != nil {
+		return 0, err
+	}
+
+	return n, nil
+}
+
+func downloadChunks(baseURL, outDir, formatStr string, from, thru int) error {
+
+	for i := from; i <= thru; i++ {
+
+		url, filePath := urlAndFilePath(baseURL, outDir, fmt.Sprintf(formatStr, i))
+
+		n, err := download(url, filePath)
+		if err != nil {
+			return err
+		}
+
+		if n == 0 {
+			errorExit(fmt.Errorf("Unknown chunk %d", i))
+		}
+
+	}
+
+	return nil
+}
+
 func downloadStream(baseURL, outDir, formatStr string) (chunks int, err error) {
 
 	i := 0
 
 	for ; ; i++ {
 
-		fileName := fmt.Sprintf(formatStr, i)
-		filePath := filepath.Join(outDir, fileName)
-		url := baseURL + "/" + fileName
-
-		n, err := download(url, filePath)
+		n, err := downloadChunk(baseURL, outDir, formatStr, i)
 		if err != nil {
 			return 0, err
+		}
+
+		fmt.Print(".")
+		if i%100 == 0 {
+			fmt.Printf(" %d\n", i)
+		} else if i%10 == 0 {
+			fmt.Print("\n")
 		}
 
 		if n == 0 {
@@ -91,6 +132,41 @@ func downloadStream(baseURL, outDir, formatStr string) (chunks int, err error) {
 	}
 
 	return i, nil
+}
+
+func downloadStreamAlt(baseURL, outDir, formatStr string) (chunks int, err error) {
+
+	i := 0
+	step := 10
+
+	for {
+		n, err := downloadChunk(baseURL, outDir, formatStr, i+step)
+		if err != nil {
+			return 0, err
+		}
+
+		if n > 0 {
+			from := 0
+			if i > 0 {
+				from = i + 1
+			}
+			go downloadChunks(baseURL, outDir, formatStr, from, i+step-1)
+			i += step
+			continue
+		}
+
+		if step == 1 {
+			_, err := downloadChunk(baseURL, outDir, formatStr, 0)
+			if err != nil {
+				return 0, err
+			}
+			return i + step, nil
+		}
+
+		step /= 2
+
+	}
+
 }
 
 func main() {
