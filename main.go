@@ -41,6 +41,20 @@ func appendFile(srcFileName, destFileName string) error {
 	return err
 }
 
+func writeConcatenatedFile(outDir, outFileName, formatStr string, n int) error {
+
+	fmt.Printf("writing %s...\n", outFileName)
+	for i := 0; i < n; i++ {
+		chunkFileName := filepath.Join(outDir, fmt.Sprintf(formatStr, i))
+		err := appendFile(chunkFileName, outFileName)
+		if err != nil {
+			errorExit(err)
+		}
+	}
+
+	return nil
+}
+
 // download url to fileName.
 func download(url, fileName string) (int, error) {
 
@@ -153,7 +167,7 @@ func downloadStream(baseURL, outDir, formatStr string) (chunks int, err error) {
 func downloadStreamOptimized(baseURL, outDir, formatStr string, done chan bool) (chunks int, err error) {
 
 	i := 0
-	step := 10
+	step := 100
 
 	for {
 
@@ -176,9 +190,11 @@ func downloadStreamOptimized(baseURL, outDir, formatStr string, done chan bool) 
 			continue
 		}
 
-		_, err = downloadChunk(baseURL, outDir, formatStr, i)
-		if err != nil {
-			return 0, err
+		if step == 2 {
+			n, err = downloadChunk(baseURL, outDir, formatStr, i)
+			if err != nil {
+				return 0, err
+			}
 		}
 
 		if n > 0 {
@@ -193,11 +209,7 @@ func downloadStreamOptimized(baseURL, outDir, formatStr string, done chan bool) 
 
 func main() {
 
-	// original:
-	// https://varorfvod.sf.apa.at/cms-austria_nas/_definst_/nas/cms-austria/online/2018-11-15_1415_sd_06_Expeditionen--G_____13995356__o__7804828615__s14396742_2__ORF3HD_14203621P_15034107P_Q6A.mp4/media_3.ts?lbs=20181115221549137&ip=84.113.199.33&ua=Mozilla%252f5.0%2b(Macintosh%253b%2bIntel%2bMac%2bOS%2bX%2b10_14_1)%2bAppleWebKit%252f537.36%2b(KHTML%252c%2blike%2bGecko)%2bChrome%252f70.0.3538.77%2bSafari%252f537.36
-
-	// ==> baseURL := "https://varorfvod.sf.apa.at/cms-austria_nas/_definst_/nas/cms-austria/online/2018-11-15_1415_sd_06_Expeditionen--G_____13995356__o__7804828615__s14396742_2__ORF3HD_14203621P_15034107P_Q6A.mp4"
-
+	// Process command line arguments.
 	if len(os.Args) != 3 {
 		errorExit(errors.New("Usage: stream2me outFile baseUrl"))
 	}
@@ -208,6 +220,7 @@ func main() {
 	outFileName := os.Args[1]
 	fmt.Printf("outFile: %s\n", outFileName)
 
+	// Mount temp dir.
 	outDir, err := ioutil.TempDir("", "stream2me")
 	if err != nil {
 		errorExit(err)
@@ -227,24 +240,22 @@ func main() {
 	fmt.Println("downloading...")
 	from := time.Now()
 
+	// Download chunk sequence.
 	n, err := downloadStreamOptimized(baseURL, outDir, formatStr, done)
 	if err != nil {
 		errorExit(err)
 	}
 
 	wg.Wait()
-
 	fmt.Printf("\nreceived %d chunks in %.1f s\n", n, time.Since(from).Seconds())
 
-	fmt.Printf("writing %s...\n", outFileName)
-	for i := 0; i < n; i++ {
-		chunkFileName := filepath.Join(outDir, fmt.Sprintf(formatStr, i))
-		err := appendFile(chunkFileName, outFileName)
-		if err != nil {
-			errorExit(err)
-		}
+	// Merge everything together.
+	err = writeConcatenatedFile(outDir, outFileName, formatStr, n)
+	if err != nil {
+		errorExit(err)
 	}
 
+	// Wipe temp dir.
 	err = os.RemoveAll(outDir)
 	if err != nil {
 		errorExit(err)
