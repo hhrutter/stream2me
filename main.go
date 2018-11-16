@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
+	"time"
 )
 
 func errorExit(err error) {
@@ -38,14 +41,13 @@ func appendFile(srcFileName, destFileName string) error {
 // download url to fileName.
 func download(url, fileName string) (int, error) {
 
-	fmt.Printf("downloading: %s\n", url)
+	//fmt.Printf("downloading: %s\n", url)
+	//fmt.Printf("         to: %s\n", fileName)
 
 	resp, err := http.Get(url)
 	if err != nil {
 		return 0, err
 	}
-
-	fmt.Printf("         to: %s\n", fileName)
 
 	if resp.StatusCode == http.StatusNotFound {
 		return 0, nil
@@ -67,16 +69,17 @@ func download(url, fileName string) (int, error) {
 	return len(body), err
 }
 
-func downloadStream(baseURL, formatStr string) (chunks int, err error) {
+func downloadStream(baseURL, outDir, formatStr string) (chunks int, err error) {
 
 	i := 0
 
 	for ; ; i++ {
 
-		fn := fmt.Sprintf(formatStr, i)
-		url := baseURL + "/" + fn
+		fileName := fmt.Sprintf(formatStr, i)
+		filePath := filepath.Join(outDir, fileName)
+		url := baseURL + "/" + fileName
 
-		n, err := download(url, fn)
+		n, err := download(url, filePath)
 		if err != nil {
 			return 0, err
 		}
@@ -95,28 +98,48 @@ func main() {
 	// original:
 	// https://varorfvod.sf.apa.at/cms-austria_nas/_definst_/nas/cms-austria/online/2018-11-15_1415_sd_06_Expeditionen--G_____13995356__o__7804828615__s14396742_2__ORF3HD_14203621P_15034107P_Q6A.mp4/media_3.ts?lbs=20181115221549137&ip=84.113.199.33&ua=Mozilla%252f5.0%2b(Macintosh%253b%2bIntel%2bMac%2bOS%2bX%2b10_14_1)%2bAppleWebKit%252f537.36%2b(KHTML%252c%2blike%2bGecko)%2bChrome%252f70.0.3538.77%2bSafari%252f537.36
 
-	baseURL := "https://varorfvod.sf.apa.at/cms-austria_nas/_definst_/nas/cms-austria/online/2018-11-15_1415_sd_06_Expeditionen--G_____13995356__o__7804828615__s14396742_2__ORF3HD_14203621P_15034107P_Q6A.mp4"
-	formatStr := "media_%d.ts"
-	outFileName := "all.ts"
+	// ==> baseURL := "https://varorfvod.sf.apa.at/cms-austria_nas/_definst_/nas/cms-austria/online/2018-11-15_1415_sd_06_Expeditionen--G_____13995356__o__7804828615__s14396742_2__ORF3HD_14203621P_15034107P_Q6A.mp4"
 
-	n, err := downloadStream(baseURL, formatStr)
+	if len(os.Args) != 3 {
+		errorExit(errors.New("Usage: stream2me outFile baseUrl"))
+	}
+
+	baseURL := os.Args[2]
+	fmt.Printf("baseURL: %s\n", baseURL)
+
+	outFileName := os.Args[1]
+	fmt.Printf("outFile: %s\n", outFileName)
+
+	outDir, err := ioutil.TempDir("", "stream2me")
+	if err != nil {
+		errorExit(err)
+	}
+	fmt.Printf("tempDir: %s\n", outDir)
+
+	formatStr := "media_%d.ts"
+
+	fmt.Println("downloading...")
+	from := time.Now()
+
+	n, err := downloadStream(baseURL, outDir, formatStr)
 	if err != nil {
 		errorExit(err)
 	}
 
-	fmt.Printf("received %d chunks\n", n)
-	fmt.Printf("writing %s...", outFileName)
+	fmt.Printf("received %d chunks in %.1f s\n", n, time.Since(from).Seconds())
 
+	fmt.Printf("writing %s...\n", outFileName)
 	for i := 0; i < n; i++ {
-		chunkFileName := fmt.Sprintf(formatStr, i)
+		chunkFileName := filepath.Join(outDir, fmt.Sprintf(formatStr, i))
 		err := appendFile(chunkFileName, outFileName)
 		if err != nil {
 			errorExit(err)
 		}
-		err = os.Remove(chunkFileName)
-		if err != nil {
-			errorExit(err)
-		}
+	}
+
+	err = os.RemoveAll(outDir)
+	if err != nil {
+		errorExit(err)
 	}
 
 	fmt.Println("done!")
