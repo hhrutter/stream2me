@@ -20,15 +20,14 @@ const (
 	left   = "\u258F"
 	right  = "\u2595"
 	box    = "\u2588"
-
-	b1 = "\u258F"
-	b2 = "\u258E"
-	b3 = "\u258D"
-	b4 = "\u258C"
-	b5 = "\u258B"
-	b6 = "\u258A"
-	b7 = "\u2589"
-	b8 = "\u2588"
+	b1     = "\u258F"
+	b2     = "\u258E"
+	b3     = "\u258D"
+	b4     = "\u258C"
+	b5     = "\u258B"
+	b6     = "\u258A"
+	b7     = "\u2589"
+	b8     = "\u2588"
 
 	formatStr        = "media_%d.ts" // Chunk file name.
 	progressBarWidth = 40            // Progress bar width in characters.
@@ -36,8 +35,8 @@ const (
 
 var (
 	wg  sync.WaitGroup
-	st  stats
 	mtx sync.Mutex
+	st  stats
 )
 
 type intSet map[int]bool
@@ -167,6 +166,8 @@ func drawFineProgressBar(pw io.Writer, w int, percentage float64, from time.Time
 
 	drawTopRow(pw, w)
 
+	var appendLeft bool
+
 	c := float64(w) / 100 * percentage
 
 	s := fmt.Sprintf(" %.0f%% ", percentage)
@@ -201,6 +202,9 @@ func drawFineProgressBar(pw io.Writer, w int, percentage float64, from time.Time
 			case 7:
 				fmt.Fprint(pw, b7)
 			}
+			if i == w-1 {
+				appendLeft = true
+			}
 			continue
 		}
 		if i == 0 {
@@ -211,8 +215,14 @@ func drawFineProgressBar(pw io.Writer, w int, percentage float64, from time.Time
 			fmt.Fprint(pw, right)
 			continue
 		}
+
 		fmt.Fprint(pw, " ")
 	}
+
+	if appendLeft {
+		fmt.Fprint(pw, left)
+	}
+
 	d := int(time.Since(from).Seconds())
 	if d >= 60 {
 		m := d / 60
@@ -382,12 +392,8 @@ func main() {
 	if len(os.Args) != 3 {
 		errorExit(errors.New("Usage: stream2me outFile baseUrl"))
 	}
-
 	baseURL := os.Args[2]
-	//fmt.Printf("baseURL: %s\n", baseURL)
-
 	outFileName := os.Args[1]
-	//fmt.Printf("outFile: %s\n", outFileName)
 
 	// Mount temp dir.
 	outDir, err := ioutil.TempDir("", "stream2me")
@@ -396,9 +402,9 @@ func main() {
 	}
 	//fmt.Printf("tempDir: %s\n\n", outDir)
 
-	done := make(chan bool)
-
 	pw := uilive.New()
+
+	done := make(chan bool)
 
 	go func() {
 		<-done
@@ -412,7 +418,6 @@ func main() {
 	}
 
 	// Download chunk sequence.
-
 	n, err := downloadStreamOptimized(baseURL, outDir, formatStr, done, pw)
 	if err != nil {
 		errorExit(err)
