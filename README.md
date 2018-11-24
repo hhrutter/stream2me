@@ -1,10 +1,10 @@
-# stream2me: download .ts streams
+# stream2me
 
-Package stream2me is a simple [MPEG-2](https://en.wikipedia.org/wiki/MPEG_transport_stream) command line tool that downloads and concatenates .ts stream chunks.
+Package **stream2me** is a simple [MPEG-2](https://en.wikipedia.org/wiki/MPEG_transport_stream) command line tool that downloads and concatenates .ts stream chunks.
 
 ## Status
 
-Version 1.0
+V1.0
 
 ## Installation
 
@@ -28,7 +28,7 @@ Example: `stream2me test.ts https://xyz.org/content/test.mp4`
   <img src="resources/screenshot.png" width="500">
 </p>
 
-**stream2me** will go and fetch chunks using a format string that will be appended to the url. There has to be a counter as part of the format string. In the example above using the default format string `media%d.ts` stream2me will fetch the urls: 
+**stream2me** will go and fetch chunks using a format string that will be appended to the url. There has to be a counter as part of the format string. In the example above using the default format string `media%d.ts` **stream2me** will fetch the urls: 
 
 ```
 https://xyz.org/content/test.mp4/media0.ts
@@ -37,7 +37,7 @@ https://xyz.org/content/test.mp4/media2.ts
 ```
  and so forth but not necessarily in that order.
 
-Once all chunks are downloaded **stream2me** will concatenate everything and write out the result to `test.ts` in this example.
+Once all chunks are downloaded **stream2me** will concatenate them and write out the result to `test.ts` in this example.
 
 You may have to patch the format string to your needs.
 
