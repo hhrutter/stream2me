@@ -29,8 +29,8 @@ const (
 	b7     = "\u2589"
 	b8     = "\u2588"
 
-	formatStr        = "media_%d.ts" // Chunk file name.
-	progressBarWidth = 40            // Progress bar width in characters.
+	formatStr        = "%d.ts" // Chunk file name.
+	progressBarWidth = 40      // Progress bar width in characters.
 )
 
 var (
@@ -143,7 +143,7 @@ func download(url, fileName string) (int, error) {
 }
 
 func urlAndFilePath(baseURL, outDir, fileName string) (url, filePath string) {
-	url = baseURL + "/" + fileName
+	url = baseURL + fileName
 	filePath = filepath.Join(outDir, fileName)
 	return
 }

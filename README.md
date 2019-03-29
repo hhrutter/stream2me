@@ -22,18 +22,18 @@ outFile ... the output .ts file
 baseUrl ... the url for fetching .ts chunks
 ````
 
-Example: `stream2me test.ts https://xyz.org/content/test.mp4` 
+Example: `stream2me test.ts https://xyz.org/content/test_` 
 
 <p>
   <img src="resources/screenshot.png" width="500">
 </p>
 
-**stream2me** will go and fetch chunks using a format string that will be appended to the url. There has to be a counter as part of the format string. In the example above using the default format string `media%d.ts` **stream2me** will fetch the urls: 
+**stream2me** will go and fetch chunks using a format string that will be appended to the url. There has to be a counter as part of the format string. In the example above using the default format string `%d.ts` **stream2me** will fetch the urls: 
 
 ```
-https://xyz.org/content/test.mp4/media0.ts
-https://xyz.org/content/test.mp4/media1.ts
-https://xyz.org/content/test.mp4/media2.ts
+https://xyz.org/content/test_0.ts
+https://xyz.org/content/test_1.ts
+https://xyz.org/content/test_2.ts
 ```
  and so forth but not necessarily in that order.
 
