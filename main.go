@@ -31,6 +31,7 @@ const (
 
 	formatStr        = "%d.ts" // Chunk file name.
 	progressBarWidth = 40      // Progress bar width in characters.
+	byteCountNone    = 136
 )
 
 var (
@@ -116,6 +117,8 @@ func writeConcatenatedFile(outDir, outFileName, formatStr string, n int) error {
 
 // download url to fileName.
 func download(url, fileName string) (int, error) {
+
+	//fmt.Printf("download: %s\n", fileName)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -293,7 +296,7 @@ func downloadChunk(baseURL, outDir, formatStr string, i int, pw *uilive.Writer) 
 		return 0, err
 	}
 
-	if n > 0 {
+	if n > byteCountNone {
 		mtx.Lock()
 		st.add(i)
 		showProgress(pw, &st)
@@ -316,7 +319,7 @@ func downloadChunks(baseURL, outDir, formatStr string, startInd, count int, done
 			done <- true
 		}
 
-		if n == 0 {
+		if n <= byteCountNone {
 			fmt.Printf("Unknown chunk %d", i)
 			done <- true
 		}
@@ -337,7 +340,7 @@ func downloadStream(baseURL, outDir, formatStr string, pw *uilive.Writer) (chunk
 			return 0, err
 		}
 
-		if n == 0 {
+		if n <= byteCountNone {
 			break
 		}
 
@@ -358,8 +361,9 @@ func downloadStreamOptimized(baseURL, outDir, formatStr string, done chan bool, 
 			return 0, err
 		}
 
-		if n > 0 {
+		if n > byteCountNone {
 			wg.Add(1)
+			// fmt.Printf("got %d, now download %d thru %d\n", n, i, i+step-1)
 			go downloadChunks(baseURL, outDir, formatStr, i, step-1, done, pw)
 			i += step
 			continue
@@ -377,7 +381,7 @@ func downloadStreamOptimized(baseURL, outDir, formatStr string, done chan bool, 
 			}
 		}
 
-		if n > 0 {
+		if n > byteCountNone {
 			return i + 1, nil
 		}
 
