@@ -125,7 +125,7 @@ func download(url, fileName string) (int, error) {
 		return 0, err
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadRequest {
 		return 0, nil
 	}
 
